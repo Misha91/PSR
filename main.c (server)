@@ -1,28 +1,29 @@
-#include <intLib.h>
-#include <iv.h>
-#include "vxWorks.h"
-#include <arch/ppc/ppc5200.h>
-#include <lite5200b.h>
-#include <arch/ppc/ppc5200.h>
 #include <taskLib.h>
 #include <stdio.h>
 #include <kernelLib.h>
 #include <semLib.h>
+#include <intLib.h>
 #include <iv.h>
-#include <xlnx_zynq7k.h>
+#include "vxWorks.h"
+#include <arch/ppc/ppc5200.h>
 
+#include <xlnx_zynq7k.h>
+#include <intLib.h>
+#include <iv.h>
+
+#include <arch/ppc/ppc5200.h>
+#include <inetLib.h>
+#include <sockLib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <timers.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-volatile long int k = 0;
-volatile int dr;
-
-#define MAX_BUF 1024
+#include "web.c"
 
 #define MPC52xx_GPT_MODE_DISABLED 0
 #define MPC52xx_GPT_MODE_INCAPT   1
@@ -37,6 +38,7 @@ volatile int dr;
 #define MPC52xx_GPT_STATUS_PIN    (1<<8)
 #define MPC52xx_GPT_PWM_OP        (1<<8) /* PWM polarity */
 
+
 #define PWMF_TIMER_NUM            2
 #define PWMB_TIMER_NUM        3
 #define PWM_PERIOD        6600         /* = 132 000 kHz / 20 kHz  */
@@ -44,75 +46,107 @@ volatile int dr;
 SEM_ID irc_sem;
 volatile int irc_a, irc_b;
 volatile char last[2];
-volatile char now[2];
+volatile char abc[2];
+volatile int k;
+volatile int c;
+int s;
+int h=0;
 
-void irc_print_status(void) {
-	while (1) {
-		semTake(irc_sem, WAIT_FOREVER);
-		sprintf(now, "%d%d", irc_a, irc_b);
-		
-		if (strcmp(now, "00") == 1) {
-			if (strcmp(last, "01") == 1) {
-				k++;
-			}
-			if (strcmp(last, "10") == 1) {
-				k--;
-			}
-		}
-		if (strcmp(now, "01") == 1) {
-			if (strcmp(last, "00") == 1) {
-				k--;
-			}
-			if (strcmp(last, "11") == 1) {
-				k++;
-			}
-		}
-		if (strcmp(now, "10") == 1) {
-			if (strcmp(last, "00") == 1) {
-				k++;
-			}
-			if (strcmp(last, "11") == 1) {
-				k--;
-			}
-		}
-		if (strcmp(now, "11") == 1) {
-			if (strcmp(last, "01") == 1) {
-				k--;
-			}
-			if (strcmp(last, "10") == 1) {
-				k++;
-			}
-		}
-
-		last[0] = now[0];
-		last[1] = now[1];
-	}
+void send_init(void){
 	
 }
 
-void contr(int dir, int speed) {
+void send_Lenya(void){
+	sysClkRateSet(5000);
+	int sockd;
+	struct sockaddr_in my_addr, srv_addr;
+	
+	int count;
+	int addrlen;
+	int i;
+	sockd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockd == -1) {
+		perror("Socket creation error");
+		exit(1);
+	}
+	my_addr.sin_family = AF_INET;
+	my_addr.sin_addr.s_addr = INADDR_ANY;
+	my_addr.sin_port = 0;
 
-	if (dir == 1) {
+	bind(sockd, (struct sockaddr*) &my_addr, sizeof(my_addr));
 
-		*(volatile uint32_t *) (0x43c20000 + 0x000C) = speed;
-		*(volatile uint32_t *) (0x43c20000 + 0x000C) |= 0 << 30;
-		*(volatile uint32_t *) (0x43c20000 + 0x000C) |= 1 << 31;
-
-	} else {
-
-		*(volatile uint32_t *) (0x43c20000 + 0x000C) = speed;
-		*(volatile uint32_t *) (0x43c20000 + 0x000C) |= 0 << 31;
-		*(volatile uint32_t *) (0x43c20000 + 0x000C) |= 1 << 30;
+	
+	/* Set server address */
+	srv_addr.sin_family = AF_INET;
+	inet_aton("192.168.202.214", &srv_addr.sin_addr);
+	srv_addr.sin_port = htons(atoi("9999"));
+	while(1){
+		char buf[10];
+		sprintf(buf, "%d", k);
+		sendto(sockd, buf, strlen(buf)+1, 0, (struct sockaddr*)&srv_addr, sizeof(srv_addr));
+		taskDelay(1);
 	}
 }
 
-void irc_isr(void) {
-	int sr; /* status register */
-	sr = *(volatile uint32_t *) (0x43c20000 + 0x0004);
-	irc_a = (sr & 0x100) >> 8;
-	irc_b = (sr & 0x200) >> 9;
-	semGive(irc_sem);
-	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000298) = 0x4; /* reset (stat) */
+void irc_print_status(void)
+{
+		printf("\nhelloworld");
+        while (1) {
+                semTake(irc_sem, WAIT_FOREVER);
+                if (strcmp(abc, "00")==1){
+         				if (strcmp(last, "01")==1) k++;
+         				if (strcmp(last, "10")==1) k--;
+         				//c = 1;
+         				//else k--;
+         				
+                 }
+                 if (strcmp(abc, "01")==1){	
+         				if (strcmp(last, "11")==1) k++;
+         				if (strcmp(last, "00")==1) k--;
+         				//c = 1;
+         				//else k--;
+                 }
+                 if (strcmp(abc, "10")==1){
+         				if (strcmp(last, "00")==1) k++;
+         				//else k--;
+         				if (strcmp(last, "11")==1) k--;
+         				//c = 1;
+                 }
+                 if (strcmp(abc, "11")==1){
+         				if (strcmp(last, "10")==1) k++;
+         				//else k--;
+         				if (strcmp(last, "01")==1) k--;
+         				//c = 1;
+                 }
+
+         		last[0] = abc[0];
+         		last[1] = abc[1];
+                //printf("a: %d, b: %d\n", irc_a, irc_b);
+                //printf("cur: %s, last: %s\n", abc, last);
+        }
+}
+
+void print_pos(void)
+{
+        while (1) {
+                //semTake(irc_sem, WAIT_FOREVER);
+               // printf("\n%d\n", k);
+                taskDelay(1);
+        }
+}
+
+void irc_isr(void)
+{
+        int sr; /* status register */
+        sr = *(volatile uint32_t *) (0x43c20000 + 0x0004);
+        irc_a = (sr & 0x100) >> 8;
+        irc_b = (sr & 0x200) >> 9;
+       
+        sprintf(abc, "%d%d", irc_a, irc_b);
+ 
+        
+        semGive(irc_sem);
+        *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000298) = 0x4; /* reset (stat) */
 }
 
 /*
@@ -121,77 +155,72 @@ void irc_isr(void) {
  *  See TRM, 14.2.4 Interrupt Function (pg. 391, pg. 1348). Technical reference
  *  manual link is on rtime HW wiki: https://rtime.felk.cvut.cz/hw/index.php/Zynq
  */
-void irc_init(void) {
-	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000298) = 0x4; /* reset (stat) */
-	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000284) = 0x0; /* set as input (dirm) */
-	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x0000029c) = 0x4; /* rising edge (type) */
-	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x000002a0) = 0x0; /* rising edge (polarity) */
-	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x000002a4) = 0x0; /* rising edge (any) */
-	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000290) = 0x4; /* enable interrupt (en) GPIO2 */
+void irc_init(void)
+{
+        *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000298) = 0x4; /* reset (stat) */
+        *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000284) = 0x0; /* set as input (dirm) */
+        *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x0000029c) = 0x4; /* rising edge (type) */
+        *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x000002a0) = 0x0; /* rising edge (polarity) */
+        *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x000002a4) = 0x0; /* rising edge (any) */
+        *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000290) = 0x4; /* enable interrupt (en) GPIO2 */
 
-	*(volatile uint32_t *) (0x43c20000 + 0x0000) = 1 << 6;
-	*(volatile uint32_t *) (0x43c20000 + 0x0008) = 5000;
-
-	intConnect(INUM_TO_IVEC(INT_LVL_GPIO), irc_isr, 0);
-	intEnable(INT_LVL_GPIO);
+        intConnect(INUM_TO_IVEC(INT_LVL_GPIO), irc_isr, 0);
+        intEnable(INT_LVL_GPIO);
 }
 
-void irc_disable(void) {
-	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000294) = 0x4; /* disable interrupt (dis) */
+void irc_disable(void)
+{
+        *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000294) = 0x4; /* disable interrupt (dis) */
 
-	intDisable(INT_LVL_GPIO);
-	intDisconnect(INUM_TO_IVEC(INT_LVL_GPIO), irc_isr, 0);
+        intDisable(INT_LVL_GPIO);
+        intDisconnect(INUM_TO_IVEC(INT_LVL_GPIO), irc_isr, 0);
 }
 
 /*
  * Entry point for DKM.
  */
-void motor(void) {
-	TASK_ID st;
-	
-	 sysClkRateSet(5000);
-	  int sockd;
-	  struct sockaddr_in my_name, cli_name;
-	  char buf[MAX_BUF];
-	  int status;
-	  int addrlen;
-	  
-	  sockd = socket(AF_INET, SOCK_DGRAM, 0);
-	   if (sockd == -1)
-	   {
-	     perror("Socket creation error");
-	     exit(1);
-	   }
+void motor(void)
+{		int kl=0;
+		printf("%d\n",s);
+        TASK_ID st, st2, st3, st4;
+        irc_init();
+        irc_sem = semCCreate(SEM_Q_FIFO, 0);
+        //st = taskSpawn("irc_st", 100, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        //st2 = taskSpawn("pos_st", 150, 0, 4096, (FUNCPTR) print_pos, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        //st3 = taskSpawn("sendLenya", 100, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        st4 = taskSpawn("www", 100, 0, 4096, (FUNCPTR) www, &s, &h, 0, 0, 0, 0, 0, 0, 0, 0);
+        int sr1; /* status register */
+        sr1 = *(volatile uint32_t *) (0x43c20000 + 0x0004);
+        int last_a = (sr1 & 0x100) >> 8;
+        int last_b = (sr1 & 0x200) >> 9;   
+        sprintf(last, "%d%d", last_a, last_b);
+        printf("init %s\n", last);
+        printf("All is ready.\n");
+        while(1){        	 
+        	if(h == -1 || kl >= 100){
+        		close(s);
+        		printf("Out of play time.\n");       	
+        		printf("\nwww closed");
+        		irc_disable();
+        		//taskDelete(st);
+        		//taskDelete(st2);
+        		//taskDelete(st3);
+        		taskDelete(st4);
+        		exit(taskIdSelf());
+        	}
+        	kl++;
+        	taskDelay(10); 
+        	
+        }
+        
 
-	   /* Configure server address */
-	   my_name.sin_family = AF_INET;
-	   my_name.sin_addr.s_addr = INADDR_ANY;
-	   my_name.sin_port = htons(atoi("9999"));
-
-	   status = bind(sockd, (struct sockaddr*)&my_name, sizeof(my_name));
-	irc_init();
-	irc_sem = semCCreate(SEM_Q_FIFO, 0);
-	sprintf(last, "%d%d", irc_a, irc_b);
-	st = taskSpawn("irc_st", 100, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0,
-			0, 0, 0, 0, 0, 0, 0);
-	printf("All is ready. last = %s\n",last);
-	while (1){
-		
-		 addrlen = sizeof(cli_name);
-			  	//printf("\nReady to receive!");
-			    status = recvfrom(sockd, buf, MAX_BUF, 0,
-			        (struct sockaddr*)&cli_name, &addrlen);
-		
-		printf("K = %d, K res = %s\n",k,buf);
-		
-	}
-	
-	
 }
 
-void task1() {
 
+void CreateTasks(void)
+{
 	motor();
+	//init_pwm();
+	//pwm_width(100);
 
 }
-
