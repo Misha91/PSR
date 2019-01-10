@@ -45,13 +45,13 @@ SEM_ID irc_sem;
 volatile int irc_a, irc_b;
 volatile char last[2];
 volatile char now[2];
-int konec=0;
+int konec = 0;
 
 void irc_print_status(void) {
 	while (1) {
 		semTake(irc_sem, WAIT_FOREVER);
 		sprintf(now, "%d%d", irc_a, irc_b);
-		
+
 		if (strcmp(now, "00") == 1) {
 			if (strcmp(last, "01") == 1) {
 				k++;
@@ -88,7 +88,7 @@ void irc_print_status(void) {
 		last[0] = now[0];
 		last[1] = now[1];
 	}
-	
+
 }
 
 void contr(int dir, int speed) {
@@ -149,73 +149,114 @@ void irc_disable(void) {
  */
 void motor(void) {
 	TASK_ID st;
-	
-	 sysClkRateSet(5000);
-	  int sockd;
-	  struct sockaddr_in my_name, cli_name;
-	
-	  int status;
-	  int addrlen;
-	  char buf[MAX_BUF];
-	  sockd = socket(AF_INET, SOCK_DGRAM, 0);
-	   if (sockd == -1)
-	   {
-	     perror("Socket creation error");
-	     exit(1);
-	   }
 
-	   /* Configure server address */
-	   my_name.sin_family = AF_INET;
-	   my_name.sin_addr.s_addr = INADDR_ANY;
-	   my_name.sin_port = htons(atoi("9999"));
+	sysClkRateSet(5000);
+	int sockd;
+	struct sockaddr_in my_name, cli_name;
 
-	   status = bind(sockd, (struct sockaddr*)&my_name, sizeof(my_name));
+	int status;
+	int addrlen;
+	char buf[MAX_BUF];
+	sockd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockd == -1) {
+		perror("Socket creation error");
+		exit(1);
+	}
+
+	/* Configure server address */
+	my_name.sin_family = AF_INET;
+	my_name.sin_addr.s_addr = INADDR_ANY;
+	my_name.sin_port = htons(atoi("9999"));
+
+	status = bind(sockd, (struct sockaddr*) &my_name, sizeof(my_name));
 	irc_init();
 	irc_sem = semCCreate(SEM_Q_FIFO, 0);
 	sprintf(last, "%d%d", irc_a, irc_b);
 	st = taskSpawn("irc_st", 100, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0,
 			0, 0, 0, 0, 0, 0, 0);
-	printf("All is ready. last = %s\n",last);
-	while (1){
-		
-		 addrlen = sizeof(cli_name);
-			  	//printf("\nReady to receive!");
-			    status = recvfrom(sockd, buf, MAX_BUF, 0,
-			        (struct sockaddr*)&cli_name, &addrlen);
-		
-					    
-			    
-	    
+	printf("All is ready. last = %s\n", last);
+	while (1) {
+
+		addrlen = sizeof(cli_name);
+		//printf("\nReady to receive!");
+		status = recvfrom(sockd, buf, MAX_BUF, 0, (struct sockaddr*) &cli_name,
+				&addrlen);
+
 		sscanf(buf, "%d", &konec);
-		printf("reseved k2 = %d, k1 = %d\n",konec,k);
-		
+		printf("reseved k2 = %s, k1 = %d\n", buf, k);
+
 		taskDelay(10);
 	}
-	
-	
+
 }
 void regulator() {
-	int p = 105;
-	while(1){
+	int p1 = 250;
+	int p = 110;
+	while (1) {
 		if (k > konec) {
-			int ms = p*(k-konec);
-			
-			contr(1,min(ms,5000));
-				}
+			if (k - konec > 5) {
+				int ms = p1 * (k - konec);
+
+				contr(1, min(ms, 5000));
+
+			} else {
+				int ms = p * (k - konec);
+
+				contr(1, min(ms, 5000));
+			}
+		}
 		if (k < konec) {
-					int ms = p*(konec-k);
-			contr(0,min(ms,5000));
-				}
+			if (konec - k > 5) {
+				int ms = p1 * (konec - k);
+				contr(0, min(ms, 5000));
+			} else {
+				int ms = p * (konec - k);
+				contr(0, min(ms, 5000));
+			}
+		}
+		taskDelay(10);
+	}
+}
+
+void send_Lenya(void) {
+	int sockd;
+	struct sockaddr_in my_addr, srv_addr;
+
+	int count;
+	int addrlen;
+	int i;
+	sockd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockd == -1) {
+		perror("Socket creation error");
+		exit(1);
+	}
+	my_addr.sin_family = AF_INET;
+	my_addr.sin_addr.s_addr = INADDR_ANY;
+	my_addr.sin_port = 0;
+
+	bind(sockd, (struct sockaddr*) &my_addr, sizeof(my_addr));
+
+	/* Set server address */
+	srv_addr.sin_family = AF_INET;
+	inet_aton("192.168.202.209", &srv_addr.sin_addr);
+	srv_addr.sin_port = htons(atoi("9999"));
+	while (1) {
+		char buf[10];
+		sprintf(buf, "%d", k);
+		sendto(sockd, buf, strlen(buf) + 1, 0, (struct sockaddr*) &srv_addr,
+				sizeof(srv_addr));
 		taskDelay(10);
 	}
 }
 
 void task1() {
 
-	taskSpawn("motor", 100, 0, 4096, (FUNCPTR) motor, 0, 0, 0,
-				0, 0, 0, 0, 0, 0, 0);
-	taskSpawn("regulator", 100, 0, 4096, (FUNCPTR) regulator, 0, 0, 0,
-					0, 0, 0, 0, 0, 0, 0);
+	taskSpawn("motor", 100, 0, 4096, (FUNCPTR) motor, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0);
+	taskSpawn("regulator", 100, 0, 4096, (FUNCPTR) regulator, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0);
+	taskSpawn("send", 100, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0);
 
 }
 
