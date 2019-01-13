@@ -23,7 +23,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "web.c"
+
+
+#define lenyaAddr "192.168.202.202"
 
 #define MPC52xx_GPT_MODE_DISABLED 0
 #define MPC52xx_GPT_MODE_INCAPT   1
@@ -48,24 +50,95 @@ volatile int irc_a, irc_b;
 volatile char last[2];
 volatile char abc[2];
 volatile int k;
+volatile int l;
+volatile int kL;	
 volatile int c;
 int s;
 int h=0;
-
+int sockd2;
+int sockdL;
 void send_init(void){
 	
 }
 
+struct dataPoints{
+	struct dataPoints *ptr;
+	int x, y;
+};
+
+//struct dataPoints* pM = NULL;
+//struct dataPoints* pML = NULL;
+//struct dataPoints* pS = NULL;
+//struct dataPoints* pSL = NULL;
+//struct dataPoints* pE = NULL;
+//struct dataPoints* pEL = NULL;
+volatile int dataN = 0;
+
+#include "web.c"
+
+void receiveFrom(void){
+	
+	struct sockaddr_in my_name, cli_name;
+		
+	int status;
+	int addrlen;
+	char buf[1024];
+	sockd2 = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockd2 == -1)
+	{
+		perror("Socket creation error");
+		exit(1);
+	}
+
+		   /* Configure server address */
+	my_name.sin_family = AF_INET;
+	my_name.sin_addr.s_addr = INADDR_ANY;
+	my_name.sin_port = htons(atoi("9999"));
+
+	status = bind(sockd2, (struct sockaddr*)&my_name, sizeof(my_name));
+	//irc_init();
+	//irc_sem = semCCreate(SEM_Q_FIFO, 0);
+	//sprintf(last, "%d%d", irc_a, irc_b);
+	//st = taskSpawn("irc_st", 100, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0,
+	//			0, 0, 0, 0, 0, 0, 0);
+	//printf("All is ready. last = %s\n",last);
+	while (1){
+		
+		addrlen = sizeof(cli_name);
+				  	//printf("\nReady to receive!");
+		status = recvfrom(sockd2, buf, 1024, 0,(struct sockaddr*)&cli_name, &addrlen);						    
+		sscanf(buf, "%d", &l);
+		//printf("error = %d\n",kL);
+		//l = kL;
+		taskDelay(1);
+	}
+
+}
+
+void updateData(void){
+	while(1){
+		pM[dataN] = k;
+		pS[dataN] = l;
+		if (k > l) pE[dataN]=(k-l);
+		else pE[dataN]=(l-k);
+		dataN++;
+		if (dataN >= 1024) dataN = 0;
+		taskDelay(1);
+	}
+	
+
+}
+
 void send_Lenya(void){
 	sysClkRateSet(5000);
-	int sockd;
+	
 	struct sockaddr_in my_addr, srv_addr;
 	
 	int count;
 	int addrlen;
 	int i;
-	sockd = socket(AF_INET, SOCK_DGRAM, 0);
-	if (sockd == -1) {
+	sockdL = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockdL == -1) {
 		perror("Socket creation error");
 		exit(1);
 	}
@@ -73,24 +146,26 @@ void send_Lenya(void){
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	my_addr.sin_port = 0;
 
-	bind(sockd, (struct sockaddr*) &my_addr, sizeof(my_addr));
+	bind(sockdL, (struct sockaddr*) &my_addr, sizeof(my_addr));
 
 	
 	/* Set server address */
 	srv_addr.sin_family = AF_INET;
-	inet_aton("192.168.202.214", &srv_addr.sin_addr);
+	inet_aton(lenyaAddr, &srv_addr.sin_addr);
 	srv_addr.sin_port = htons(atoi("9999"));
+	printf("connected to Lenya\n");
 	while(1){
 		char buf[10];
 		sprintf(buf, "%d", k);
-		sendto(sockd, buf, strlen(buf)+1, 0, (struct sockaddr*)&srv_addr, sizeof(srv_addr));
-		taskDelay(1);
+		while(sendto(sockdL, buf, strlen(buf)+1, 0, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) == -1);
+		printf("\n%s\n", buf);
+		taskDelay(10);
 	}
 }
 
 void irc_print_status(void)
 {
-		printf("\nhelloworld");
+		printf("helloworld\n");
         while (1) {
                 semTake(irc_sem, WAIT_FOREVER);
                 if (strcmp(abc, "00")==1){
@@ -130,8 +205,8 @@ void print_pos(void)
 {
         while (1) {
                 //semTake(irc_sem, WAIT_FOREVER);
-               // printf("\n%d\n", k);
-                taskDelay(1);
+                //printf("\n%d\n", k);
+                taskDelay(500);
         }
 }
 
@@ -181,35 +256,47 @@ void irc_disable(void)
  */
 void motor(void)
 {		int kl=0;
-		printf("%d\n",s);
-        TASK_ID st, st2, st3, st4;
+		printf("s:%d\n",s);
+        TASK_ID st, st2, st3, st4, st5, st6;
         irc_init();
         irc_sem = semCCreate(SEM_Q_FIFO, 0);
-        //st = taskSpawn("irc_st", 100, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        //st2 = taskSpawn("pos_st", 150, 0, 4096, (FUNCPTR) print_pos, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        //st3 = taskSpawn("sendLenya", 100, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        st4 = taskSpawn("www", 100, 0, 4096, (FUNCPTR) www, &s, &h, 0, 0, 0, 0, 0, 0, 0, 0);
+        st = taskSpawn("irc_st", 50, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        st2 = taskSpawn("pos_st", 200, 0, 4096, (FUNCPTR) print_pos, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        st3 = taskSpawn("sendLenya", 75, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        st4 = taskSpawn("www", 250, 0, 4096, (FUNCPTR) www, &s, &h, &dataN, 0, 0, 0, 0, 0, 0, 0);
+        st5 = taskSpawn("receive", 150, 0, 4096, (FUNCPTR) receiveFrom, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        st6 = taskSpawn("updateData", 200, 0, 4096, (FUNCPTR) updateData, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        
         int sr1; /* status register */
         sr1 = *(volatile uint32_t *) (0x43c20000 + 0x0004);
         int last_a = (sr1 & 0x100) >> 8;
         int last_b = (sr1 & 0x200) >> 9;   
         sprintf(last, "%d%d", last_a, last_b);
+        printf("S:%d\n",s);
         printf("init %s\n", last);
         printf("All is ready.\n");
         while(1){        	 
-        	if(h == -1 || kl >= 100){
+        	if(h == -1 || kl >= 1000){
+        		while(!(taskDelete(st4))){
+        			printf("unable to delete\n");
+        			//taskDelay(1);
+        		}
         		close(s);
+        		close(sockdL);
         		printf("Out of play time.\n");       	
         		printf("\nwww closed");
         		irc_disable();
-        		//taskDelete(st);
-        		//taskDelete(st2);
-        		//taskDelete(st3);
-        		taskDelete(st4);
+        		taskDelete(st);
+        		taskDelete(st2);
+        		taskDelete(st3);
+        		
+        		taskDelete(st5);
+        		taskDelete(st6);
+        		close(sockd2);
         		exit(taskIdSelf());
         	}
         	kl++;
-        	taskDelay(10); 
+        	taskDelay(1000); 
         	
         }
         
@@ -217,10 +304,41 @@ void motor(void)
 }
 
 
-void CreateTasks(void)
-{
-	motor();
-	//init_pwm();
-	//pwm_width(100);
 
-}
+//	while(1){
+//		if (dataN == 0){
+//			struct dataPoints m;
+//			pM = &m;
+//			//m.ptr = &m;
+//			m.x = dataN;
+//			m.y = k;
+//		}
+//		else{
+//			struct dataPoints m;			
+//			m.x = dataN;
+//			m.y = k;
+//			if (dataN == 1){
+//				pM->ptr = &m;
+//				pML = &m;
+//			}
+//			if (dataN > 1 && dataN <= 20){
+//				pML->ptr = &m;
+//				pML = &m;
+//			}
+//			else{
+//				pML->ptr = &m;
+//				pML = &m;
+//				struct dataPoints* tmp1 = pM;
+//				pM = pM->ptr;
+//				//delete tmp1;
+//			}
+//		}
+//		if (dataN >= 1000000) dataN = 21;
+//		dataN++;
+//		struct dataPoints* tmp = pM;
+//		while(tmp->ptr != NULL){
+//			printf("\n%d %d", pM->x, pM->y);
+//			tmp = tmp->ptr;
+//		}
+//		taskDelay(50);
+//	}
