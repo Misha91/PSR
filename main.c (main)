@@ -45,7 +45,7 @@ SEM_ID irc_sem;
 volatile int irc_a, irc_b;
 volatile char last[2];
 volatile char now[2];
-int konec = 0;
+volatile int konec = 0;
 
 void irc_print_status(void) {
 	while (1) {
@@ -185,7 +185,7 @@ void motor(void) {
 		sscanf(buf, "%d", &konec);
 		printf("reseved k2 = %s, k1 = %d\n", buf, k);
 
-		taskDelay(10);
+		taskDelay(5);
 	}
 
 }
@@ -214,7 +214,7 @@ void regulator() {
 				contr(0, min(ms, 5000));
 			}
 		}
-		taskDelay(10);
+		taskDelay(5);
 	}
 }
 
@@ -238,22 +238,22 @@ void send_Lenya(void) {
 
 	/* Set server address */
 	srv_addr.sin_family = AF_INET;
-	inet_aton("192.168.202.209", &srv_addr.sin_addr);
+	inet_aton("192.168.202.211", &srv_addr.sin_addr);
 	srv_addr.sin_port = htons(atoi("9999"));
 	while (1) {
 		char buf[10];
 		sprintf(buf, "%d", k);
 		sendto(sockd, buf, strlen(buf) + 1, 0, (struct sockaddr*) &srv_addr,
 				sizeof(srv_addr));
-		taskDelay(10);
+		taskDelay(1);
 	}
 }
 
 void task1() {
 
-	taskSpawn("motor", 100, 0, 4096, (FUNCPTR) motor, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	taskSpawn("motor", 101, 0, 4096, (FUNCPTR) motor, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			0);
-	taskSpawn("regulator", 100, 0, 4096, (FUNCPTR) regulator, 0, 0, 0, 0, 0, 0,
+	taskSpawn("regulator", 101, 0, 4096, (FUNCPTR) regulator, 0, 0, 0, 0, 0, 0,
 			0, 0, 0, 0);
 	taskSpawn("send", 100, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0,
 			0, 0, 0);
