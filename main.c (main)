@@ -183,7 +183,7 @@ void motor(void) {
 				&addrlen);
 
 		sscanf(buf, "%d", &konec);
-		printf("reseved k2 = %s, k1 = %d\n", buf, k);
+		printf("reseved k2 = %d, k1 = %d\n", konec, k);
 
 		taskDelay(5);
 	}
@@ -191,9 +191,9 @@ void motor(void) {
 }
 void regulator() {
 	int p1 = 250;
-	int p = 110;
+	int p = 100;
 	while (1) {
-		if (k > konec) {
+		if (k >= konec) {
 			if (k - konec > 5) {
 				int ms = p1 * (k - konec);
 
@@ -240,10 +240,11 @@ void send_Lenya(void) {
 	srv_addr.sin_family = AF_INET;
 	inet_aton("192.168.202.211", &srv_addr.sin_addr);
 	srv_addr.sin_port = htons(atoi("9999"));
+	char buf1[10];
 	while (1) {
-		char buf[10];
-		sprintf(buf, "%d", k);
-		sendto(sockd, buf, strlen(buf) + 1, 0, (struct sockaddr*) &srv_addr,
+		
+		sprintf(buf1, "%d", k);
+		sendto(sockd, buf1, strlen(buf1) + 1, 0, (struct sockaddr*) &srv_addr,
 				sizeof(srv_addr));
 		taskDelay(1);
 	}
