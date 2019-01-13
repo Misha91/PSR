@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+
 volatile long int k = 0;
 volatile int dr;
 
@@ -172,18 +173,18 @@ void motor(void) {
 	irc_init();
 	irc_sem = semCCreate(SEM_Q_FIFO, 0);
 	sprintf(last, "%d%d", irc_a, irc_b);
-	st = taskSpawn("irc_st", 100, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0,
-			0, 0, 0, 0, 0, 0, 0);
+	st = taskSpawn("irc_st", 100, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 	printf("All is ready. last = %s\n", last);
 	while (1) {
 
 		addrlen = sizeof(cli_name);
 		//printf("\nReady to receive!");
-		status = recvfrom(sockd, buf, MAX_BUF, 0, (struct sockaddr*) &cli_name,
-				&addrlen);
+		while(recvfrom(sockd, buf, MAX_BUF, 0, (struct sockaddr*) &cli_name, &addrlen) <= 0){
+			printf("nth received\n");
+		}
 
 		sscanf(buf, "%d", &konec);
-		printf("reseved k2 = %d, k1 = %d\n", konec, k);
+		//printf("reseved k2 = %d, k1 = %d\n", konec, k);
 
 		taskDelay(5);
 	}
@@ -244,20 +245,19 @@ void send_Lenya(void) {
 	while (1) {
 		
 		sprintf(buf1, "%d", k);
-		sendto(sockd, buf1, strlen(buf1) + 1, 0, (struct sockaddr*) &srv_addr,
+		sendto(sockd, buf1, strlen(buf1) + 2, 0, (struct sockaddr*) &srv_addr,
 				sizeof(srv_addr));
+		printf("%s\n", buf1);
 		taskDelay(1);
 	}
 }
 
 void task1() {
 
-	taskSpawn("motor", 101, 0, 4096, (FUNCPTR) motor, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-			0);
-	taskSpawn("regulator", 101, 0, 4096, (FUNCPTR) regulator, 0, 0, 0, 0, 0, 0,
-			0, 0, 0, 0);
-	taskSpawn("send", 100, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0,
-			0, 0, 0);
+	taskSpawn("motor", 101, 0, 4096, (FUNCPTR) motor, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);	
+	taskSpawn("send", 100, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	taskDelay(50);
+	taskSpawn("regulator", 101, 0, 4096, (FUNCPTR) regulator, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	
 
 }
-
