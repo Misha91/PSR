@@ -49,10 +49,9 @@ SEM_ID irc_sem;
 volatile int irc_a, irc_b;
 volatile char last[2];
 volatile char abc[2];
-volatile int k;
-volatile int l;
-volatile int kL;	
-volatile int c;
+volatile int k=0;
+volatile int l=0;	
+volatile int c=0;
 int s;
 int h=0;
 int sockd2;
@@ -106,9 +105,11 @@ void receiveFrom(void){
 		
 		addrlen = sizeof(cli_name);
 				  	//printf("\nReady to receive!");
-		status = recvfrom(sockd2, buf, 1024, 0,(struct sockaddr*)&cli_name, &addrlen);						    
+		while(recvfrom(sockd2, buf, 1024, 0, (struct sockaddr*) &cli_name, &addrlen) <= 0){
+					printf("nth received\n");
+				}					    
 		sscanf(buf, "%d", &l);
-		//printf("error = %d\n",kL);
+		//printf("error = %d\n",l);
 		//l = kL;
 		taskDelay(1);
 	}
@@ -119,24 +120,22 @@ void updateData(void){
 	while(1){
 		pM[dataN] = k;
 		pS[dataN] = l;
-		if (k > l) pE[dataN]=(k-l);
-		else pE[dataN]=(l-k);
+		pE[dataN] = (l-k);		
 		dataN++;
 		if (dataN >= 1024) dataN = 0;
-		taskDelay(1);
+		taskDelay(10);
 	}
 	
 
 }
 
 void send_Lenya(void){
-	sysClkRateSet(5000);
 	
+	int i = 0;
 	struct sockaddr_in my_addr, srv_addr;
 	
 	int count;
-	int addrlen;
-	int i;
+	int addrlen;	
 	sockdL = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sockdL == -1) {
 		perror("Socket creation error");
@@ -155,11 +154,10 @@ void send_Lenya(void){
 	srv_addr.sin_port = htons(atoi("9999"));
 	printf("connected to Lenya\n");
 	while(1){
-		char buf[10];
-		sprintf(buf, "%d", k);
-		while(sendto(sockdL, buf, strlen(buf)+1, 0, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) == -1);
-		printf("\n%s\n", buf);
-		taskDelay(10);
+		char buf[4];
+		if(!(sprintf(buf, "%d", k) > 0)) printf("alert!\n");
+		while(sendto(sockdL, buf, strlen(buf)+2, 0, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) == -1);
+		taskDelay(5);
 	}
 }
 
@@ -257,16 +255,18 @@ void irc_disable(void)
 void motor(void)
 {		int kl=0;
 		printf("s:%d\n",s);
+		sysClkRateSet(5000);
         TASK_ID st, st2, st3, st4, st5, st6;
         irc_init();
         irc_sem = semCCreate(SEM_Q_FIFO, 0);
         st = taskSpawn("irc_st", 50, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         st2 = taskSpawn("pos_st", 200, 0, 4096, (FUNCPTR) print_pos, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        st3 = taskSpawn("sendLenya", 75, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        
         st4 = taskSpawn("www", 250, 0, 4096, (FUNCPTR) www, &s, &h, &dataN, 0, 0, 0, 0, 0, 0, 0);
         st5 = taskSpawn("receive", 150, 0, 4096, (FUNCPTR) receiveFrom, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         st6 = taskSpawn("updateData", 200, 0, 4096, (FUNCPTR) updateData, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        
+        taskDelay(1000);
+        st3 = taskSpawn("sendLenya", 75, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         int sr1; /* status register */
         sr1 = *(volatile uint32_t *) (0x43c20000 + 0x0004);
         int last_a = (sr1 & 0x100) >> 8;
@@ -276,7 +276,7 @@ void motor(void)
         printf("init %s\n", last);
         printf("All is ready.\n");
         while(1){        	 
-        	if(h == -1 || kl >= 1000){
+        	if(h == -1 || kl >= 50000){
         		while(!(taskDelete(st4))){
         			printf("unable to delete\n");
         			//taskDelay(1);
