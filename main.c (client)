@@ -3,14 +3,12 @@
 #include "vxWorks.h"
 #include <arch/ppc/ppc5200.h>
 #include <lite5200b.h>
-#include <arch/ppc/ppc5200.h>
 #include <taskLib.h>
 #include <stdio.h>
 #include <kernelLib.h>
 #include <semLib.h>
 #include <iv.h>
 #include <xlnx_zynq7k.h>
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -22,6 +20,7 @@
 
 volatile long int k = 0;
 volatile int dr;
+volatile int lastError = 0;
 
 #define MAX_BUF 1024
 
@@ -48,9 +47,11 @@ volatile char last[2];
 volatile char now[2];
 volatile int konec = 0;
 
+
+//position update routine
 void irc_print_status(void) {
 	while (1) {
-		semTake(irc_sem, WAIT_FOREVER);
+		semTake(irc_sem, WAIT_FOREVER); // blocked until the position has changed
 		sprintf(now, "%d%d", irc_a, irc_b);
 
 		if (strcmp(now, "00") == 1) {
@@ -92,6 +93,7 @@ void irc_print_status(void) {
 
 }
 
+//motor control routine (used at regulator)
 void contr(int dir, int speed) {
 
 	if (dir == 1) {
@@ -108,12 +110,13 @@ void contr(int dir, int speed) {
 	}
 }
 
+//ISR to read new motor position
 void irc_isr(void) {
 	int sr; /* status register */
 	sr = *(volatile uint32_t *) (0x43c20000 + 0x0004);
 	irc_a = (sr & 0x100) >> 8;
 	irc_b = (sr & 0x200) >> 9;
-	semGive(irc_sem);
+	semGive(irc_sem); //gives semaphore to update current posiion
 	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000298) = 0x4; /* reset (stat) */
 }
 
@@ -132,12 +135,13 @@ void irc_init(void) {
 	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000290) = 0x4; /* enable interrupt (en) GPIO2 */
 
 	*(volatile uint32_t *) (0x43c20000 + 0x0000) = 1 << 6;
-	*(volatile uint32_t *) (0x43c20000 + 0x0008) = 5000;
+	*(volatile uint32_t *) (0x43c20000 + 0x0008) = 5000; //maximum PWM
 
 	intConnect(INUM_TO_IVEC(INT_LVL_GPIO), irc_isr, 0);
 	intEnable(INT_LVL_GPIO);
 }
 
+//interupt disable routine
 void irc_disable(void) {
 	*(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000294) = 0x4; /* disable interrupt (dis) */
 
@@ -148,6 +152,7 @@ void irc_disable(void) {
 /*
  * Entry point for DKM.
  */
+//motor initialization and routine for receiving of target position
 void motor(void) {
 	TASK_ID st;
 
@@ -177,49 +182,43 @@ void motor(void) {
 	printf("All is ready. last = %s\n", last);
 	while (1) {
 
-		addrlen = sizeof(cli_name);
-		//printf("\nReady to receive!");
+		addrlen = sizeof(cli_name);		
 		while(recvfrom(sockd, buf, MAX_BUF, 0, (struct sockaddr*) &cli_name, &addrlen) <= 0){
 			printf("nth received\n");
 		}
 
 		sscanf(buf, "%d", &konec);
-		//printf("reseved k2 = %d, k1 = %d\n", konec, k);
+		//printf("recieved k2 = %d, k1 = %d\n", konec, k);
 
 		taskDelay(5);
 	}
 
 }
+
+//PI motor regulator
 void regulator() {
-	int p1 = 250;
-	int p = 100;
+	int pi = 225;
+	int p = 150;
+	int error = 0;
 	while (1) {
-		if (k >= konec) {
-			if (k - konec > 5) {
-				int ms = p1 * (k - konec);
+		error = k - konec;
+		int tune = (int)(abs(error)*p + lastError*pi);
+		
+		if (error >= 0) {
+				contr(1, min(tune, 5000));
 
-				contr(1, min(ms, 5000));
-
-			} else {
-				int ms = p * (k - konec);
-
-				contr(1, min(ms, 5000));
-			}
 		}
-		if (k < konec) {
-			if (konec - k > 5) {
-				int ms = p1 * (konec - k);
-				contr(0, min(ms, 5000));
-			} else {
-				int ms = p * (konec - k);
-				contr(0, min(ms, 5000));
-			}
+		else {
+				contr(0, min(tune, 5000));
 		}
+		lastError = abs(error);
 		taskDelay(5);
 	}
 }
 
-void send_Lenya(void) {
+
+//routine sends back client possition
+void send_Respond(void) {
 	int sockd;
 	struct sockaddr_in my_addr, srv_addr;
 
@@ -239,7 +238,7 @@ void send_Lenya(void) {
 
 	/* Set server address */
 	srv_addr.sin_family = AF_INET;
-	inet_aton("192.168.202.211", &srv_addr.sin_addr);
+	inet_aton("192.168.202.214", &srv_addr.sin_addr);
 	srv_addr.sin_port = htons(atoi("9999"));
 	char buf1[10];
 	while (1) {
@@ -247,15 +246,17 @@ void send_Lenya(void) {
 		sprintf(buf1, "%d", k);
 		sendto(sockd, buf1, strlen(buf1) + 2, 0, (struct sockaddr*) &srv_addr,
 				sizeof(srv_addr));
-		printf("%s\n", buf1);
+		//printf("%s\n", buf1);
 		taskDelay(1);
 	}
 }
 
+
+//main fuction that drives the project
 void task1() {
 
 	taskSpawn("motor", 101, 0, 4096, (FUNCPTR) motor, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);	
-	taskSpawn("send", 100, 0, 4096, (FUNCPTR) send_Lenya, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	taskSpawn("send", 100, 0, 4096, (FUNCPTR) send_Respond, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 	taskDelay(50);
 	taskSpawn("regulator", 101, 0, 4096, (FUNCPTR) regulator, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 	
