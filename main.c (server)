@@ -25,7 +25,7 @@
 
 
 
-#define lenyaAddr "192.168.202.202"
+#define lenyaAddr "192.168.202.215" //client adress
 
 #define MPC52xx_GPT_MODE_DISABLED 0
 #define MPC52xx_GPT_MODE_INCAPT   1
@@ -56,21 +56,8 @@ int s;
 int h=0;
 int sockd2;
 int sockdL;
-void send_init(void){
-	
-}
 
-struct dataPoints{
-	struct dataPoints *ptr;
-	int x, y;
-};
 
-//struct dataPoints* pM = NULL;
-//struct dataPoints* pML = NULL;
-//struct dataPoints* pS = NULL;
-//struct dataPoints* pSL = NULL;
-//struct dataPoints* pE = NULL;
-//struct dataPoints* pEL = NULL;
 volatile int dataN = 0;
 
 #include "web.c"
@@ -95,27 +82,19 @@ void receiveFrom(void){
 	my_name.sin_port = htons(atoi("9999"));
 
 	status = bind(sockd2, (struct sockaddr*)&my_name, sizeof(my_name));
-	//irc_init();
-	//irc_sem = semCCreate(SEM_Q_FIFO, 0);
-	//sprintf(last, "%d%d", irc_a, irc_b);
-	//st = taskSpawn("irc_st", 100, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0,
-	//			0, 0, 0, 0, 0, 0, 0);
-	//printf("All is ready. last = %s\n",last);
 	while (1){
 		
-		addrlen = sizeof(cli_name);
-				  	//printf("\nReady to receive!");
+		addrlen = sizeof(cli_name);				  	
 		while(recvfrom(sockd2, buf, 1024, 0, (struct sockaddr*) &cli_name, &addrlen) <= 0){
 					printf("nth received\n");
 				}					    
 		sscanf(buf, "%d", &l);
-		//printf("error = %d\n",l);
-		//l = kL;
+		//printf("error = %d\n",l);		
 		taskDelay(1);
 	}
 
 }
-
+//updates data point for plotting
 void updateData(void){
 	while(1){
 		pM[dataN] = k;
@@ -128,7 +107,7 @@ void updateData(void){
 	
 
 }
-
+//sends position to target board
 void send_Lenya(void){
 	
 	int i = 0;
@@ -160,7 +139,7 @@ void send_Lenya(void){
 		taskDelay(5);
 	}
 }
-
+//position update
 void irc_print_status(void)
 {
 		printf("helloworld\n");
@@ -168,46 +147,38 @@ void irc_print_status(void)
                 semTake(irc_sem, WAIT_FOREVER);
                 if (strcmp(abc, "00")==1){
          				if (strcmp(last, "01")==1) k++;
-         				if (strcmp(last, "10")==1) k--;
-         				//c = 1;
-         				//else k--;
-         				
+         				if (strcmp(last, "10")==1) k--;         				
                  }
                  if (strcmp(abc, "01")==1){	
          				if (strcmp(last, "11")==1) k++;
          				if (strcmp(last, "00")==1) k--;
-         				//c = 1;
-         				//else k--;
                  }
                  if (strcmp(abc, "10")==1){
-         				if (strcmp(last, "00")==1) k++;
-         				//else k--;
+         				if (strcmp(last, "00")==1) k++;        
          				if (strcmp(last, "11")==1) k--;
-         				//c = 1;
+   
                  }
                  if (strcmp(abc, "11")==1){
-         				if (strcmp(last, "10")==1) k++;
-         				//else k--;
+         				if (strcmp(last, "10")==1) k++;   
          				if (strcmp(last, "01")==1) k--;
-         				//c = 1;
-                 }
 
+                 }
          		last[0] = abc[0];
          		last[1] = abc[1];
-                //printf("a: %d, b: %d\n", irc_a, irc_b);
-                //printf("cur: %s, last: %s\n", abc, last);
+
         }
 }
 
+//printf of position to terminal
 void print_pos(void)
 {
         while (1) {
-                //semTake(irc_sem, WAIT_FOREVER);
-                //printf("\n%d\n", k);
+                printf("\n%d\n", k);
                 taskDelay(500);
         }
 }
 
+//ISR for handling motor position change
 void irc_isr(void)
 {
         int sr; /* status register */
@@ -240,7 +211,7 @@ void irc_init(void)
         intConnect(INUM_TO_IVEC(INT_LVL_GPIO), irc_isr, 0);
         intEnable(INT_LVL_GPIO);
 }
-
+//disabling of interrupts
 void irc_disable(void)
 {
         *(volatile uint32_t *) (ZYNQ7K_GPIO_BASE + 0x00000294) = 0x4; /* disable interrupt (dis) */
@@ -252,6 +223,7 @@ void irc_disable(void)
 /*
  * Entry point for DKM.
  */
+//Main function that runs the project
 void motor(void)
 {		int kl=0;
 		printf("s:%d\n",s);
@@ -260,7 +232,7 @@ void motor(void)
         irc_init();
         irc_sem = semCCreate(SEM_Q_FIFO, 0);
         st = taskSpawn("irc_st", 50, 0, 4096, (FUNCPTR) irc_print_status, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        st2 = taskSpawn("pos_st", 200, 0, 4096, (FUNCPTR) print_pos, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        //st2 = taskSpawn("pos_st", 200, 0, 4096, (FUNCPTR) print_pos, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         
         st4 = taskSpawn("www", 250, 0, 4096, (FUNCPTR) www, &s, &h, &dataN, 0, 0, 0, 0, 0, 0, 0);
         st5 = taskSpawn("receive", 150, 0, 4096, (FUNCPTR) receiveFrom, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -279,7 +251,6 @@ void motor(void)
         	if(h == -1 || kl >= 50000){
         		while(!(taskDelete(st4))){
         			printf("unable to delete\n");
-        			//taskDelay(1);
         		}
         		close(s);
         		close(sockdL);
@@ -287,9 +258,8 @@ void motor(void)
         		printf("\nwww closed");
         		irc_disable();
         		taskDelete(st);
-        		taskDelete(st2);
-        		taskDelete(st3);
-        		
+        		//taskDelete(st2);
+        		taskDelete(st3);        		
         		taskDelete(st5);
         		taskDelete(st6);
         		close(sockd2);
@@ -302,43 +272,3 @@ void motor(void)
         
 
 }
-
-
-
-//	while(1){
-//		if (dataN == 0){
-//			struct dataPoints m;
-//			pM = &m;
-//			//m.ptr = &m;
-//			m.x = dataN;
-//			m.y = k;
-//		}
-//		else{
-//			struct dataPoints m;			
-//			m.x = dataN;
-//			m.y = k;
-//			if (dataN == 1){
-//				pM->ptr = &m;
-//				pML = &m;
-//			}
-//			if (dataN > 1 && dataN <= 20){
-//				pML->ptr = &m;
-//				pML = &m;
-//			}
-//			else{
-//				pML->ptr = &m;
-//				pML = &m;
-//				struct dataPoints* tmp1 = pM;
-//				pM = pM->ptr;
-//				//delete tmp1;
-//			}
-//		}
-//		if (dataN >= 1000000) dataN = 21;
-//		dataN++;
-//		struct dataPoints* tmp = pM;
-//		while(tmp->ptr != NULL){
-//			printf("\n%d %d", pM->x, pM->y);
-//			tmp = tmp->ptr;
-//		}
-//		taskDelay(50);
-//	}
