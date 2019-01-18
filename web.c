@@ -9,12 +9,11 @@
 #define SERVER_PORT     80 /* Port 80 is reserved for HTTP protocol */
 #define SERVER_MAX_CONNECTIONS  20
 
-
-
 int pM[1024];
 int pS[1024];
 int pE[1024];
 
+//macros used for generating HTML page below
 #define HTMLs "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>\
 <html>\
 <head>\
@@ -83,6 +82,7 @@ int pE[1024];
 
 void newRequest(int newFd, int *h, int *dataN);
 
+//main function of server handling
 void www(int* s, int *h, int *dataN, int argc, char *argv[])
 {
   
@@ -136,35 +136,16 @@ void www(int* s, int *h, int *dataN, int argc, char *argv[])
     	newRequest(newFd, &(*h), &(*dataN));
     }
     taskUnsafe();
-    //FILE *f = fdopen(newFd, "w");
-    //fprintf(f, "HTTP/1.0 200 OK\r\n\r\n");
-    //fprintf(f, "Current time is %ld.\n", time(NULL));
-    //fclose(f);
-    /* The client connected from IP address inet_ntoa(clientAddr.sin_addr)
-       and port ntohs(clientAddr.sin_port).
-
-       Start a new task forHTMLge each request. The task will parse the request
-       and sends back the response.
-
-       Don't forget to close newFd at the end */
   }
 }
 
+//function to generate respond for new request
 void newRequest(int newFd, int *h, int *dataN){
 	(*h)++;
 	FILE *f = fdopen(newFd, "r+");	
 	char str1[10], str2[10], str3[10];
 	fscanf(f, "%s %s %s", str1,str2,str3);
-	//str1[9]='\0';
-	//str2[9]='\0';
-	//str3[9]='\0';
-	//printf("Read String1 |%s|\n", str1 );
-	//printf("Read String2 |%s|\n", str2 );
-	//printf("Read String3 |%s|\n", str3 );
-	//fprintf(f, "HTTP/1.0 200 OK\r\nContent-Type: image/svg+html\r\n\r\n"); //Content-Type: image/svg+html\n
 	if (strcmp(str2, "/graph.svg") < 0){
-	//printf("b");
-	//printf("\n%s", str2);
 	fprintf(f, "HTTP/1.0 200 OK\r\n\r\n"); //Content-Type: image/svg+html\n
 	//fprintf(f, "Current time is %ld.\n", time(NULL));
 	fprintf(f, "%s", HTMLs);
@@ -205,11 +186,11 @@ void newRequest(int newFd, int *h, int *dataN){
 		x = 0;
 						
 		for (a = *dataN; a < 1024; a++){
-			fprintf(f, "%d,    %d\n", x, pE[*dataN]);
+			fprintf(f, "%d,    %d\n", x, pE[a]);
 			x+= 2;
 		}
 		for (a = 0; a < *dataN - 1; a++){
-			fprintf(f, "%d,    %d\n", x, pE[*dataN]);
+			fprintf(f, "%d,    %d\n", x, pE[a]);
 			x+= 2;
 		}
 		fprintf(f, "%d,    %d", x, pE[*dataN]);
